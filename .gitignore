@@ -1,0 +1,6 @@
+# 编译产物
+*.exe
+/go-lintjson
+
+# 临时文件
+_*.txt
