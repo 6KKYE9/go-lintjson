@@ -155,7 +155,7 @@ func checkOne(name string, src []byte, out io.Writer, o opts) (int, error) {
 }
 
 // writeAtomic 原子地覆盖文件。
-// 直接截断写的话，格式化到一半出错就把用户的原文件毁了。
+// 先写临时文件再改名，避免写到一半出错毁掉原文件。
 func writeAtomic(path string, data []byte) error {
 	dir := filepath.Dir(path)
 	f, err := os.CreateTemp(dir, ".json-*.tmp")
@@ -163,17 +163,14 @@ func writeAtomic(path string, data []byte) error {
 		return err
 	}
 	tmp := f.Name()
-	defer func() {
-		if tmp != "" {
-			f.Close()
-			os.Remove(tmp)
-		}
-	}()
+	defer os.Remove(tmp) // 出了错就把临时文件清掉；改名成功后 Remove 会报错但无所谓
 
 	if _, err := f.Write(data); err != nil {
+		f.Close()
 		return err
 	}
 	if err := f.Sync(); err != nil {
+		f.Close()
 		return err
 	}
 	if err := f.Close(); err != nil {
@@ -184,9 +181,10 @@ func writeAtomic(path string, data []byte) error {
 			return err
 		}
 	}
+	// Windows 上 os.Rename 不覆盖已有文件，先删掉目标
+	os.Remove(path)
 	if err := os.Rename(tmp, path); err != nil {
 		return err
 	}
-	tmp = ""
 	return nil
 }
